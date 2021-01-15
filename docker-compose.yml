@@ -1,0 +1,114 @@
+version: '3.1'
+
+services:
+
+#########################################################
+####                    LOGGING                      ####
+#########################################################
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.9.1
+    depends_on:
+      - elasticsearch
+      - kibana
+    restart: on-failure
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/host-logs
+    user: root
+    labels:
+      container_group: logging
+
+  heartbeat:
+    image: docker.elastic.co/beats/heartbeat:7.9.1
+    depends_on:
+      - elasticsearch
+      - kibana
+    restart: on-failure
+    volumes:
+      - ./heartbeat/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml
+      - ./heartbeat/monitors.d:/usr/share/heartbeat/monitors.d
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    user: root
+    labels:
+      container_group: logging
+
+#########################################################
+
+  # Storage and search backend. Gets all logs from Logstash and is the backend that Kibana runs on.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.9.1
+    expose:
+      - 9200
+    ports:
+      - 9200:9200
+    command: elasticsearch -Etransport.host=127.0.0.1 -Ebootstrap.memory_lock=false
+    labels:
+      container_group: logging
+    networks:
+      default:
+        aliases:
+          - elasticsearchhost # Required for elastalert.
+    environment:
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
+#########################################################
+
+  # Pretty frontend to explore and check out all your logs.
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.9.1
+    depends_on:
+      - elasticsearch
+    ports:
+      - 5601:5601
+    expose:
+      - 5601
+    labels:
+      container_group: logging
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=4096 #Elastalert needs more memory to install plugin 
+
+
+##########################################################
+# Generate Logs###
+
+  apache-common-logs:
+    image: mingrammer/flog
+    command: --format apache_common --delay 5 -loop --number 10
+    labels:
+      co.elastic.logs/module: apache2
+      #co.elastic.logs/fileset.stdout: access
+      #co.elastic.logs/fileset.stderr: error
+
+  apache-combined-logs:
+    image: mingrammer/flog
+    command: --format apache_combined --delay 5 -loop --number 10
+    labels:
+      co.elastic.logs/module: apache2
+      #co.elastic.logs/fileset.stdout: access
+      #co.elastic.logs/fileset.stderr: error
+
+  apache-error-logs:
+    image: mingrammer/flog
+    command: --format apache_error --delay 5 -loop --number 10
+    labels:
+      co.elastic.logs/module: apache2
+      #co.elastic.logs/fileset.stdout: access
+      #co.elastic.logs/fileset.stderr: error
+
+  syslog-logs:
+    image: mingrammer/flog
+    command: --format rfc3164 --delay 5 -loop --number 10
+    labels:
+      co.elastic.logs/module: system
+      #co.elastic.logs/fileset.stdout: access
+      #co.elastic.logs/fileset.stderr: error
+
+  nginx-logs:
+    image: liubin/nginx-log-generator
+    labels:
+      co.elastic.logs/module: nginx
+      #co.elastic.logs/fileset.stdout: access
+      #co.elastic.logs/fileset.stderr: error

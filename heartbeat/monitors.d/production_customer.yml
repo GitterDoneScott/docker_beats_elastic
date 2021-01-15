@@ -1,0 +1,25 @@
+- type: http
+  id: "Super Important Site"
+  name: "Super Important Site"
+  tags: ["Search", "Important Client"]
+  schedule: '@every 1m'
+  urls:
+    - "https://www.google.com/"
+  ipv4: true
+  ipv6: true
+  mode: any
+  response.include_body_max_bytes: 10240000
+  response.include_body: always
+
+  timeout: 160s
+  ssl:
+    supported_protocols: ["TLSv1.0", "TLSv1.1", "TLSv1.2"]
+    verification_mode: full
+
+  check.request:
+    method: "GET"
+    headers:
+      'Connection': 'close'
+
+  check.response:
+    status: 200
