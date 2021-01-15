@@ -1,2 +1,1 @@
-# docker_filebeat_elastic
-Docker container logs to Elasticsearch using Filebeats PoC
+Elasticsearch docker stack using Filebeats and Heartbeat
